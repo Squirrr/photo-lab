@@ -64,6 +64,7 @@ export default function Home() {
             initial={{ opacity: 0, scale: 0.9 }}
             animate={{ opacity: 1, scale: 1 }}
             transition={{ duration: 0.6, delay: 0.9 }}
+            className="flex flex-col items-center gap-4"
           >
             <Link href="/upload">
               <button 
@@ -76,6 +77,17 @@ export default function Home() {
                 }}
               >
                 START DEVELOPING
+              </button>
+            </Link>
+            <Link href="/history">
+              <button 
+                className="text-sm transition-all duration-300 hover:opacity-80"
+                style={{ 
+                  color: '#c49660',
+                  fontFamily: "'Courier New', monospace"
+                }}
+              >
+                VIEW COMMIT HISTORY →
               </button>
             </Link>
           </motion.div>

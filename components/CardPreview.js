@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import CardTemplate, { CARD_WIDTH, CARD_HEIGHT } from './CardTemplate'
 import { getFilterStyle } from '../utils/filterStyles'
 
@@ -183,6 +184,96 @@ function generateRandomCollage(images, sizeScale = 0.5, aspectRatio = 'square') 
   return positions
 }
 
+// Component for individual collage image with loading state
+function CollageImageItem({ item, idx, filter }) {
+  const [imageLoaded, setImageLoaded] = useState(false)
+  const [imageError, setImageError] = useState(false)
+
+  return (
+    <div
+      className="absolute overflow-hidden shadow-2xl"
+      style={{
+        top: `${item.top}%`,
+        left: `${item.left}%`,
+        width: `${item.width}%`,
+        height: `${item.height}%`,
+        transform: `rotate(${item.rotate}deg)`,
+        zIndex: item.zIndex,
+        border: '3px solid rgba(255, 255, 255, 0.95)',
+      }}
+    >
+      <img
+        src={item.image}
+        alt={`Photo ${idx + 1}`}
+        className="w-full h-full object-cover"
+        style={{ 
+          filter: imageLoaded ? filter.filter : 'none',
+          transform: 'scale(1.05)',
+          display: imageError ? 'none' : 'block'
+        }}
+        crossOrigin="anonymous"
+        onError={(e) => {
+          console.error(`Failed to load image in collage at index ${idx}:`, item.image?.substring(0, 50))
+          setImageError(true)
+          setImageLoaded(false)
+          // Show a placeholder
+          const parent = e.target.parentElement
+          if (parent) {
+            const placeholder = document.createElement('div')
+            placeholder.style.cssText = 'display: flex; align-items: center; justify-content: center; width: 100%; height: 100%; color: rgba(255, 255, 255, 0.5); font-size: 10px; font-family: "Courier New", monospace; background: rgba(0, 0, 0, 0.2);'
+            placeholder.textContent = 'Image failed to load'
+            if (!parent.querySelector('.error-placeholder')) {
+              placeholder.className = 'error-placeholder'
+              parent.appendChild(placeholder)
+            }
+          }
+        }}
+        onLoad={(e) => {
+          // Check if image actually loaded (not just a black/empty image)
+          const img = e.target
+          if (img.naturalWidth === 0 || img.naturalHeight === 0) {
+            setImageError(true)
+            setImageLoaded(false)
+            return
+          }
+          setImageLoaded(true)
+          setImageError(false)
+          img.style.display = 'block'
+          img.style.opacity = '1'
+          // Remove any error placeholders
+          const parent = img.parentElement
+          if (parent) {
+            const placeholder = parent.querySelector('.error-placeholder')
+            if (placeholder) {
+              placeholder.remove()
+            }
+          }
+        }}
+        loading="eager"
+      />
+      {imageLoaded && !imageError && filter.shadowOverlay && (
+        <div
+          className="absolute inset-0 pointer-events-none"
+          style={{
+            background: `radial-gradient(circle at 50% 100%, ${filter.shadowOverlay} 0%, transparent 70%)`,
+            mixBlendMode: 'multiply',
+            opacity: 0.6,
+          }}
+        />
+      )}
+      {imageLoaded && !imageError && filter.overlay && (
+        <div
+          className="absolute inset-0 pointer-events-none"
+          style={{
+            backgroundColor: filter.overlay,
+            mixBlendMode: filter.mixBlendMode || 'overlay',
+          }}
+        />
+      )}
+    </div>
+  )
+}
+
 // Format date/time like a digicam timestamp (YYYY/MM/DD HH:MM:SS)
 function formatDigicamTimestamp() {
   const now = new Date()
@@ -238,67 +329,12 @@ export function CollageCard({ images, year = new Date().getFullYear(), filterSty
     <CardTemplate gradientIndex={0} id="card-collage">
       <div className="relative w-full h-full p-4">
         {collagePositions.map((item, idx) => (
-          <div
+          <CollageImageItem
             key={idx}
-            className="absolute overflow-hidden shadow-2xl"
-            style={{
-              top: `${item.top}%`,
-              left: `${item.left}%`,
-              width: `${item.width}%`,
-              height: `${item.height}%`,
-              transform: `rotate(${item.rotate}deg)`,
-              zIndex: item.zIndex,
-              border: '3px solid rgba(255, 255, 255, 0.95)',
-            }}
-          >
-            <img
-              src={item.image}
-              alt={`Photo ${idx + 1}`}
-              className="w-full h-full object-cover"
-              style={{ 
-                filter: filter.filter,
-                transform: 'scale(1.05)',
-                display: 'block'
-              }}
-              crossOrigin="anonymous"
-              onError={(e) => {
-                console.error(`Failed to load image in collage at index ${idx}:`, item.image?.substring(0, 50))
-                // Show a placeholder or hide the broken image
-                e.target.style.display = 'none'
-                // Try to show a fallback
-                const parent = e.target.parentElement
-                if (parent) {
-                  parent.style.backgroundColor = 'rgba(0, 0, 0, 0.3)'
-                  parent.innerHTML = '<div style="display: flex; align-items: center; justify-content: center; width: 100%; height: 100%; color: white; font-size: 12px;">Image failed to load</div>'
-                }
-              }}
-              onLoad={(e) => {
-                // Ensure image is visible when loaded
-                e.target.style.display = 'block'
-                e.target.style.opacity = '1'
-              }}
-              loading="eager"
-            />
-            {filter.shadowOverlay && (
-              <div
-                className="absolute inset-0 pointer-events-none"
-                style={{
-                  background: `radial-gradient(circle at 50% 100%, ${filter.shadowOverlay} 0%, transparent 70%)`,
-                  mixBlendMode: 'multiply',
-                  opacity: 0.6,
-                }}
-              />
-            )}
-            {filter.overlay && (
-              <div
-                className="absolute inset-0 pointer-events-none"
-                style={{
-                  backgroundColor: filter.overlay,
-                  mixBlendMode: filter.mixBlendMode || 'overlay',
-                }}
-              />
-            )}
-          </div>
+            item={item}
+            idx={idx}
+            filter={filter}
+          />
         ))}
         <div className="absolute bottom-6 right-6" style={{ zIndex: images.length + 10 }}>
           <div className="text-right">
