@@ -2,20 +2,11 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/router'
 import { motion } from 'framer-motion'
 import { generateCards } from '../lib/cardGenerator'
-import { loadImages, loadSizeScale, saveSizeScale, loadFilter, saveFilter } from '../lib/storage'
+import { loadImages, loadSizeScale, saveSizeScale, loadFilter, saveFilter, loadCustomText } from '../lib/storage'
 import { FILTER_STYLES } from '../utils/filterStyles'
 import CardGallery from '../components/CardGallery'
 import ExportButtons from '../components/ExportButtons'
 import { CARD_WIDTH, CARD_HEIGHT } from '../components/CardTemplate'
-
-// Use global addDebugLog if available, fallback to console
-const addDebugLog = (category, message, data) => {
-  if (typeof window !== 'undefined' && window.addDebugLog) {
-    window.addDebugLog(category, message, data)
-  } else {
-    console.log(`[${category}]`, message, data)
-  }
-}
 
 const LOADING_MESSAGES = [
   'Processing...',
@@ -33,6 +24,7 @@ export default function Gallery() {
   const [sizeScale, setSizeScale] = useState(0.5)
   const [currentFilter, setCurrentFilter] = useState('fujifilm')
   const [cardScale, setCardScale] = useState(1)
+  const [customText, setCustomText] = useState('')
   const filterKeys = Object.keys(FILTER_STYLES)
 
   // Calculate scale for card to fit container
@@ -50,24 +42,10 @@ export default function Gallery() {
   }, [])
 
   useEffect(() => {
-    addDebugLog('Gallery', 'Component mounted, loading images', {})
     const images = loadImages()
     const savedScale = loadSizeScale()
     const savedFilter = loadFilter()
-    
-    addDebugLog('Gallery', 'Loaded data from storage', {
-      imagesCount: images.length,
-      savedScale,
-      savedFilter,
-      images: images.map((img, idx) => ({
-        index: idx,
-        type: typeof img,
-        isString: typeof img === 'string',
-        startsWithData: typeof img === 'string' ? img.startsWith('data:image/') : false,
-        length: typeof img === 'string' ? img.length : 0,
-        preview: typeof img === 'string' ? img.substring(0, 80) : 'not a string'
-      }))
-    })
+    const savedCustomText = loadCustomText()
     
     if (savedScale !== null) {
       setSizeScale(savedScale)
@@ -77,13 +55,14 @@ export default function Gallery() {
       setCurrentFilter(savedFilter)
     }
 
+    if (savedCustomText) {
+      setCustomText(savedCustomText)
+    }
+
     if (images.length === 0) {
-      addDebugLog('Gallery', 'No images found, redirecting to upload', {})
       router.push('/upload')
       return
     }
-    
-    addDebugLog('Gallery', 'Images found, proceeding to generate cards', {})
 
     const messageInterval = setInterval(() => {
       setLoadingMessage(
@@ -213,7 +192,7 @@ export default function Gallery() {
           className="text-3xl md:text-4xl font-display-bold uppercase tracking-wider" 
           style={{ letterSpacing: '0.1em', color: '#f5f1e8', textShadow: '2px 2px 4px rgba(0, 0, 0, 0.8)' }}
         >
-          {new Date().getFullYear()} WRAPPED
+          {customText.toUpperCase() || 'COLLAGE'}
         </h2>
       </div>
       {/* Card gallery with fixed size container matching card dimensions for screenshots */}
@@ -310,28 +289,19 @@ export default function Gallery() {
         currentFilter={currentFilter}
         allFilters={filterKeys}
         onExportAllFilters={async (filterKey, callback) => {
-          addDebugLog('Gallery', `onExportAllFilters called for ${filterKey}`, {
-            currentFilter,
-            filterKey,
-            isMobile: typeof window !== 'undefined' && window.innerWidth <= 768
-          })
-          
           // Temporarily change filter, wait for render, then export
           const originalFilter = currentFilter
           if (filterKey !== currentFilter) {
-            addDebugLog('Gallery', `Changing filter from ${currentFilter} to ${filterKey}`, {})
             handleFilterChange(filterKey)
             
             // Wait longer for DOM to update and images to re-render
             const waitTime = typeof window !== 'undefined' && window.innerWidth <= 768 ? 1500 : 1000
-            addDebugLog('Gallery', `Waiting ${waitTime}ms for filter change to render`, {})
             await new Promise(resolve => setTimeout(resolve, waitTime))
             
             // Wait for the element to exist and images to be in DOM
             let element = document.getElementById('card-collage')
             let retries = 0
             while (!element && retries < 10) {
-              addDebugLog('Gallery', `Waiting for card-collage element (retry ${retries})`, {})
               await new Promise(resolve => setTimeout(resolve, 100))
               element = document.getElementById('card-collage')
               retries++
@@ -339,7 +309,6 @@ export default function Gallery() {
             
             if (element) {
               const images = element.querySelectorAll('img')
-              addDebugLog('Gallery', `Element found with ${images.length} images, waiting for them to load`, {})
               
               // Wait for images to actually load
               await new Promise(resolve => {
@@ -347,7 +316,6 @@ export default function Gallery() {
                 const totalImages = images.length
                 
                 if (totalImages === 0) {
-                  addDebugLog('Gallery', 'No images found in element', {})
                   resolve()
                   return
                 }
@@ -355,40 +323,22 @@ export default function Gallery() {
                 const checkComplete = () => {
                   loadedCount++
                   if (loadedCount === totalImages) {
-                    addDebugLog('Gallery', `All ${totalImages} images loaded for ${filterKey}`, {})
                     resolve()
                   }
                 }
                 
-                images.forEach((img, idx) => {
+                images.forEach((img) => {
                   if (img.complete && img.naturalWidth > 0 && img.naturalHeight > 0) {
-                    addDebugLog('Gallery', `Image ${idx} already loaded`, {
-                      naturalWidth: img.naturalWidth,
-                      naturalHeight: img.naturalHeight
-                    })
                     checkComplete()
                   } else {
-                    img.onload = () => {
-                      addDebugLog('Gallery', `Image ${idx} loaded`, {
-                        naturalWidth: img.naturalWidth,
-                        naturalHeight: img.naturalHeight
-                      })
-                      checkComplete()
-                    }
-                    img.onerror = () => {
-                      addDebugLog('Gallery', `WARN: Image ${idx} error`, {})
-                      checkComplete()
-                    }
+                    img.onload = checkComplete
+                    img.onerror = checkComplete
                   }
                 })
                 
                 // Safety timeout
                 setTimeout(() => {
                   if (loadedCount < totalImages) {
-                    addDebugLog('Gallery', 'WARN: Timeout waiting for images', {
-                      loaded: loadedCount,
-                      total: totalImages
-                    })
                     resolve()
                   }
                 }, 5000)
@@ -400,19 +350,10 @@ export default function Gallery() {
           }
           
           const element = document.getElementById('card-collage')
-          if (!element) {
-            addDebugLog('Gallery', 'ERROR: card-collage element not found', {})
-          } else {
-            addDebugLog('Gallery', 'Element ready, calling callback', {
-              imagesCount: element.querySelectorAll('img').length
-            })
-          }
-          
           await callback(element)
           
           // Restore original filter
           if (filterKey !== originalFilter) {
-            addDebugLog('Gallery', `Restoring filter to ${originalFilter}`, {})
             handleFilterChange(originalFilter)
             await new Promise(resolve => setTimeout(resolve, 500))
           }

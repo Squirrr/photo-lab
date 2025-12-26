@@ -1,14 +1,5 @@
 import { useState, useRef } from 'react'
 
-// Use global addDebugLog if available, fallback to console
-const addDebugLog = (category, message, data) => {
-  if (typeof window !== 'undefined' && window.addDebugLog) {
-    window.addDebugLog(category, message, data)
-  } else {
-    console.log(`[${category}]`, message, data)
-  }
-}
-
 export default function ImageUploader({ images, onImagesChange, maxImages = null }) {
   const [isDragging, setIsDragging] = useState(false)
   const [isProcessing, setIsProcessing] = useState(false)
@@ -52,25 +43,9 @@ export default function ImageUploader({ images, onImagesChange, maxImages = null
       const maxHeight = mobile ? 1600 : 1920
       const quality = mobile ? 0.65 : 0.75
       
-      addDebugLog('ImageUploader', 'Starting image compression', {
-        mobile,
-        maxWidth,
-        maxHeight,
-        quality,
-        inputLength: dataUrl.length,
-        inputPreview: dataUrl.substring(0, 100)
-      })
-      
       const img = new Image()
       img.onload = () => {
         try {
-          addDebugLog('ImageUploader', 'Image loaded for compression', {
-            originalWidth: img.width,
-            originalHeight: img.height,
-            naturalWidth: img.naturalWidth,
-            naturalHeight: img.naturalHeight
-          })
-          
           const canvas = document.createElement('canvas')
           let width = img.width
           let height = img.height
@@ -80,11 +55,6 @@ export default function ImageUploader({ images, onImagesChange, maxImages = null
             const ratio = Math.min(maxWidth / width, maxHeight / height)
             width = width * ratio
             height = height * ratio
-            addDebugLog('ImageUploader', 'Resizing image', {
-              original: `${img.width}x${img.height}`,
-              new: `${width}x${height}`,
-              ratio
-            })
           }
 
           canvas.width = width
@@ -96,13 +66,6 @@ export default function ImageUploader({ images, onImagesChange, maxImages = null
           // Convert to JPEG with compression
           const compressedDataUrl = canvas.toDataURL('image/jpeg', quality)
           
-          addDebugLog('ImageUploader', 'Image compression complete', {
-            originalLength: dataUrl.length,
-            compressedLength: compressedDataUrl.length,
-            compressionRatio: ((1 - compressedDataUrl.length / dataUrl.length) * 100).toFixed(2) + '%',
-            finalDimensions: `${width}x${height}`
-          })
-          
           // Clean up to free memory
           img.src = ''
           canvas.width = 0
@@ -110,12 +73,10 @@ export default function ImageUploader({ images, onImagesChange, maxImages = null
           
           resolve(compressedDataUrl)
         } catch (error) {
-          addDebugLog('ImageUploader', 'ERROR: Compression error', { error: error?.message })
           reject(error)
         }
       }
       img.onerror = (error) => {
-        addDebugLog('ImageUploader', 'ERROR: Image load error during compression', { error: error?.message })
         reject(error)
       }
       img.src = dataUrl
@@ -124,17 +85,7 @@ export default function ImageUploader({ images, onImagesChange, maxImages = null
 
   const processFile = (file) => {
     return new Promise(async (resolve, reject) => {
-      addDebugLog('ImageUploader', 'Processing file', {
-        name: file.name,
-        type: file.type,
-        size: file.size,
-        isHeic: isHeicFile(file),
-        userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : 'unknown',
-        isMobile: isMobileDevice()
-      })
-      
       if (!validateFile(file)) {
-        addDebugLog('ImageUploader', 'ERROR: File validation failed', { name: file.name, type: file.type })
         reject(new Error('Invalid file'))
         return
       }
@@ -144,7 +95,6 @@ export default function ImageUploader({ images, onImagesChange, maxImages = null
 
         // Convert HEIC files to JPEG
         if (isHeicFile(file)) {
-          addDebugLog('ImageUploader', 'Processing HEIC file', { name: file.name })
           // Dynamically import heic2any only on client side
           if (typeof window === 'undefined') {
             reject(new Error('HEIC conversion is only available in the browser'))
@@ -166,25 +116,12 @@ export default function ImageUploader({ images, onImagesChange, maxImages = null
             const reader = new FileReader()
             reader.onload = (e) => {
               dataUrl = e.target.result
-              addDebugLog('ImageUploader', 'HEIC converted to data URL', {
-                name: file.name,
-                dataUrlLength: dataUrl.length,
-                dataUrlPreview: dataUrl.substring(0, 100),
-                mimeType: dataUrl.split(';')[0]
-              })
               // Compress the converted image
               compressImage(dataUrl)
                 .then((compressed) => {
-                  addDebugLog('ImageUploader', 'HEIC image compressed', {
-                    name: file.name,
-                    originalLength: dataUrl.length,
-                    compressedLength: compressed.length,
-                    compressionRatio: ((1 - compressed.length / dataUrl.length) * 100).toFixed(2) + '%'
-                  })
                   resolve(compressed)
                 })
                 .catch((error) => {
-                  addDebugLog('ImageUploader', 'WARN: HEIC compression failed', { name: file.name, error: error?.message })
                   resolve(dataUrl) // Fallback to uncompressed if compression fails
                 })
             }
@@ -202,34 +139,19 @@ export default function ImageUploader({ images, onImagesChange, maxImages = null
           }
         } else {
           // Process regular image files
-          addDebugLog('ImageUploader', 'Processing regular image file', { name: file.name, type: file.type })
           const reader = new FileReader()
           reader.onload = async (e) => {
             dataUrl = e.target.result
-            addDebugLog('ImageUploader', 'File read as data URL', {
-              name: file.name,
-              dataUrlLength: dataUrl.length,
-              dataUrlPreview: dataUrl.substring(0, 100),
-              mimeType: dataUrl.split(';')[0]
-            })
             // Compress all images to reduce storage size
             try {
               const compressed = await compressImage(dataUrl)
-              addDebugLog('ImageUploader', 'Image compressed', {
-                name: file.name,
-                originalLength: dataUrl.length,
-                compressedLength: compressed.length,
-                compressionRatio: ((1 - compressed.length / dataUrl.length) * 100).toFixed(2) + '%'
-              })
               resolve(compressed)
             } catch (compressError) {
               // If compression fails, use original (but this might cause quota issues)
-              addDebugLog('ImageUploader', 'WARN: Image compression failed', { name: file.name, error: compressError?.message })
               resolve(dataUrl)
             }
           }
           reader.onerror = (error) => {
-            addDebugLog('ImageUploader', 'ERROR: FileReader error', { name: file.name, error: error?.message })
             reject(error)
           }
           reader.readAsDataURL(file)
@@ -290,13 +212,6 @@ export default function ImageUploader({ images, onImagesChange, maxImages = null
               timeoutPromise
             ])
             
-            addDebugLog('ImageUploader', 'File processed successfully', {
-              fileName: file.name,
-              resultLength: result?.length || 0,
-              resultPreview: result?.substring(0, 100) || 'no result',
-              isDataUrl: typeof result === 'string' && result.startsWith('data:image/')
-            })
-            
             successfulImages.push(result)
             
             // Update state incrementally on mobile to avoid memory buildup
@@ -351,24 +266,11 @@ export default function ImageUploader({ images, onImagesChange, maxImages = null
 
       // Final update with all successful images (in case incremental updates missed some)
       if (successfulImages.length > 0) {
-        addDebugLog('ImageUploader', 'Final update with all successful images', {
-          successfulCount: successfulImages.length,
-          totalImages: images.length + successfulImages.length,
-          successfulImages: successfulImages.map((img, idx) => ({
-            index: idx,
-            type: typeof img,
-            isString: typeof img === 'string',
-            startsWithData: typeof img === 'string' ? img.startsWith('data:image/') : false,
-            length: typeof img === 'string' ? img.length : 0,
-            preview: typeof img === 'string' ? img.substring(0, 80) : 'not a string'
-          }))
-        })
         try {
           onImagesChange([...images, ...successfulImages])
-          addDebugLog('ImageUploader', 'Final images update successful', {})
         } catch (error) {
           // If final update fails, at least show what we have
-          addDebugLog('ImageUploader', 'ERROR: Failed to save final images', { error: error?.message })
+          console.error('Failed to save final images:', error)
         }
       }
 

@@ -2,15 +2,6 @@ import { useState } from 'react'
 import CardTemplate, { CARD_WIDTH, CARD_HEIGHT } from './CardTemplate'
 import { getFilterStyle } from '../utils/filterStyles'
 
-// Use global addDebugLog if available, fallback to console
-const addDebugLog = (category, message, data) => {
-  if (typeof window !== 'undefined' && window.addDebugLog) {
-    window.addDebugLog(category, message, data)
-  } else {
-    console.log(`[${category}]`, message, data)
-  }
-}
-
 // Calculate the grid dimensions needed for n images
 // aspectRatio: 'square' or 'portrait'
 function calculateGridSize(n, aspectRatio = 'square') {
@@ -198,16 +189,6 @@ function CollageImageItem({ item, idx, filter }) {
   const [imageLoaded, setImageLoaded] = useState(false)
   const [imageError, setImageError] = useState(false)
 
-  addDebugLog(`CollageImageItem-${idx}`, 'Component rendered', {
-    imageSrc: item.image?.substring(0, 100),
-    imageLength: item.image?.length,
-    imageType: typeof item.image,
-    isDataUrl: typeof item.image === 'string' && item.image.startsWith('data:image/'),
-    position: { top: item.top, left: item.left, width: item.width, height: item.height },
-    imageLoaded,
-    imageError
-  })
-
   return (
     <div
       className="absolute overflow-hidden shadow-2xl"
@@ -232,17 +213,6 @@ function CollageImageItem({ item, idx, filter }) {
         }}
         crossOrigin="anonymous"
         onError={(e) => {
-          const img = e.target
-          addDebugLog(`CollageImageItem-${idx}`, 'ERROR: Image load error', {
-            src: item.image?.substring(0, 100),
-            srcLength: item.image?.length,
-            naturalWidth: img.naturalWidth,
-            naturalHeight: img.naturalHeight,
-            complete: img.complete,
-            currentSrc: img.currentSrc?.substring(0, 100),
-            error: img.error,
-            userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : 'unknown'
-          })
           setImageError(true)
           setImageLoaded(false)
           // Show a placeholder
@@ -260,27 +230,12 @@ function CollageImageItem({ item, idx, filter }) {
         onLoad={(e) => {
           // Check if image actually loaded (not just a black/empty image)
           const img = e.target
-          addDebugLog(`CollageImageItem-${idx}`, 'Image onLoad triggered', {
-            naturalWidth: img.naturalWidth,
-            naturalHeight: img.naturalHeight,
-            complete: img.complete,
-            currentSrc: img.currentSrc?.substring(0, 100),
-            src: item.image?.substring(0, 100),
-            computedStyle: window.getComputedStyle(img).display,
-            isZeroSize: img.naturalWidth === 0 || img.naturalHeight === 0
-          })
           
           if (img.naturalWidth === 0 || img.naturalHeight === 0) {
-            addDebugLog(`CollageImageItem-${idx}`, 'WARN: Image has zero dimensions', {})
             setImageError(true)
             setImageLoaded(false)
             return
           }
-          
-          addDebugLog(`CollageImageItem-${idx}`, 'Image loaded successfully', {
-            dimensions: `${img.naturalWidth}x${img.naturalHeight}`,
-            willApplyFilter: true
-          })
           
           setImageLoaded(true)
           setImageError(false)
@@ -294,9 +249,6 @@ function CollageImageItem({ item, idx, filter }) {
               placeholder.remove()
             }
           }
-        }}
-        onLoadStart={() => {
-          addDebugLog(`CollageImageItem-${idx}`, 'Image load started', {})
         }}
         loading="eager"
       />
@@ -335,33 +287,13 @@ function formatDigicamTimestamp() {
   return `${year}/${month}/${day} ${hours}:${minutes}:${seconds}`
 }
 
-export function CollageCard({ images, year = new Date().getFullYear(), filterStyle = 'fujifilm', sizeScale = 0.5, aspectRatio = 'square' }) {
-  addDebugLog('CollageCard', 'Component rendered', {
-    imagesCount: images?.length || 0,
-    images: images?.map(img => ({
-      type: typeof img,
-      isString: typeof img === 'string',
-      startsWithData: typeof img === 'string' ? img.startsWith('data:image/') : false,
-      length: typeof img === 'string' ? img.length : 0,
-      preview: typeof img === 'string' ? img.substring(0, 100) : 'not a string'
-    })),
-    filterStyle,
-    sizeScale,
-    aspectRatio,
-    userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : 'unknown',
-    isMobile: typeof window !== 'undefined' ? window.innerWidth <= 768 : false
-  })
-
+export function CollageCard({ images, year = new Date().getFullYear(), filterStyle = 'fujifilm', sizeScale = 0.5, aspectRatio = 'square', customText = '' }) {
   if (!images || images.length === 0) {
-    addDebugLog('CollageCard', 'No images provided')
     return (
       <CardTemplate gradientIndex={0} id="card-collage">
         <div className="text-center">
-          <div className="text-sm tracking-widest uppercase mb-4 opacity-60" style={{ letterSpacing: '0.2em' }}>
-            {year}
-          </div>
           <h2 className="text-7xl font-display-bold uppercase" style={{ fontFamily: "'Bungee Inline', cursive" }}>
-            WRAPPED
+            {customText.toUpperCase() || 'COLLAGE'}
           </h2>
         </div>
       </CardTemplate>
@@ -370,34 +302,15 @@ export function CollageCard({ images, year = new Date().getFullYear(), filterSty
 
   // Filter out invalid images
   const validImages = images.filter(img => {
-    const isValid = img && typeof img === 'string' && img.startsWith('data:image/')
-    if (!isValid) {
-      addDebugLog('CollageCard', 'Invalid image filtered out', {
-        type: typeof img,
-        isString: typeof img === 'string',
-        startsWithData: typeof img === 'string' ? img.startsWith('data:image/') : false,
-        preview: typeof img === 'string' ? img.substring(0, 50) : img
-      })
-    }
-    return isValid
-  })
-  
-  addDebugLog('CollageCard', 'Image validation complete', {
-    totalImages: images.length,
-    validImages: validImages.length,
-    invalidCount: images.length - validImages.length
+    return img && typeof img === 'string' && img.startsWith('data:image/')
   })
   
   if (validImages.length === 0) {
-    addDebugLog('CollageCard', 'ERROR: No valid images after filtering', {})
     return (
       <CardTemplate gradientIndex={0} id="card-collage">
         <div className="text-center">
-          <div className="text-sm tracking-widest uppercase mb-4 opacity-60" style={{ letterSpacing: '0.2em' }}>
-            {year}
-          </div>
           <h2 className="text-7xl font-display-bold uppercase" style={{ fontFamily: "'Bungee Inline', cursive" }}>
-            WRAPPED
+            {customText.toUpperCase() || 'COLLAGE'}
           </h2>
           <p className="mt-4 text-sm opacity-60">No valid images found</p>
         </div>
@@ -408,19 +321,6 @@ export function CollageCard({ images, year = new Date().getFullYear(), filterSty
   const filter = getFilterStyle(filterStyle)
   const collagePositions = generateRandomCollage(validImages, sizeScale, aspectRatio)
   const timestamp = formatDigicamTimestamp()
-  
-  addDebugLog('CollageCard', 'Collage positions generated', {
-    positionsCount: collagePositions.length,
-    positions: collagePositions.map((pos, idx) => ({
-      index: idx,
-      imagePreview: pos.image?.substring(0, 50),
-      imageLength: pos.image?.length,
-      top: pos.top,
-      left: pos.left,
-      width: pos.width,
-      height: pos.height
-    }))
-  })
 
   return (
     <CardTemplate gradientIndex={0} id="card-collage">

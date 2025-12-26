@@ -1,19 +1,12 @@
 import '../styles/globals.css'
 import Head from 'next/head'
-import DebugPanel from '../components/DebugPanel'
-import { addDebugLog } from '../components/DebugPanel'
-
-// Make addDebugLog available globally
-if (typeof window !== 'undefined') {
-  window.addDebugLog = addDebugLog
-}
 
 export default function App({ Component, pageProps }) {
   return (
     <>
       <Head>
-        <title>PHOTO LAB - Retro Year Collage</title>
-        <meta name="description" content="Create retro photography collages from your year. Upload photos and generate vintage-style collages with film filters." />
+        <title>PHOTO LAB - Retro Collage Maker</title>
+        <meta name="description" content="Create cool retro photography collages. Upload photos and generate stunning vintage-style collages with film filters." />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
         <link rel="alternate icon" href="/favicon.svg" />
@@ -22,7 +15,6 @@ export default function App({ Component, pageProps }) {
         <link href="https://fonts.googleapis.com/css2?family=Bungee&family=Bungee+Inline&family=Black+Ops+One&display=swap" rel="stylesheet" />
       </Head>
       <Component {...pageProps} />
-      <DebugPanel />
     </>
   )
 }

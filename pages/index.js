@@ -41,7 +41,7 @@ export default function Home() {
             className="text-3xl md:text-5xl mb-6 font-display-bold"
             style={{ color: '#f5f1e8', textShadow: '2px 2px 4px rgba(0, 0, 0, 0.8)' }}
           >
-            WRAP YOUR YEAR
+            CREATE COOL COLLAGES
           </motion.h2>
           <motion.p
             initial={{ opacity: 0 }}
@@ -50,7 +50,7 @@ export default function Home() {
             className="text-lg md:text-xl mb-3"
             style={{ color: '#d4a574', fontFamily: "'Courier New', monospace" }}
           >
-            DEVELOP YOUR MEMORIES
+            CREATE STUNNING COLLAGES
           </motion.p>
           <motion.p
             initial={{ opacity: 0 }}
@@ -59,7 +59,7 @@ export default function Home() {
             className="text-sm md:text-base mb-10"
             style={{ color: '#c49660', fontFamily: "'Courier New', monospace" }}
           >
-            UPLOAD YOUR PHOTOS → GET A RETRO COLLAGE
+            UPLOAD YOUR PHOTOS → GET A COOL RETRO COLLAGE
           </motion.p>
           <motion.div
             initial={{ opacity: 0, scale: 0.9 }}

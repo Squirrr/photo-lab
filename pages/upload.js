@@ -1,16 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/router'
 import ImageUploader from '../components/ImageUploader'
-import { saveImages, loadImages, saveAspectRatio, loadAspectRatio } from '../lib/storage'
-
-// Use global addDebugLog if available, fallback to console
-const addDebugLog = (category, message, data) => {
-  if (typeof window !== 'undefined' && window.addDebugLog) {
-    window.addDebugLog(category, message, data)
-  } else {
-    console.log(`[${category}]`, message, data)
-  }
-}
+import { saveImages, loadImages, saveAspectRatio, loadAspectRatio, saveCustomText, loadCustomText } from '../lib/storage'
 
 // Check if a number is a perfect square (valid for square grids)
 function isValidSquareCount(n) {
@@ -87,43 +78,29 @@ export default function Upload() {
   const router = useRouter()
   const [images, setImages] = useState([])
   const [aspectRatio, setAspectRatio] = useState('square')
+  const [customText, setCustomText] = useState('')
 
   useEffect(() => {
     const saved = loadImages()
     const savedAspectRatio = loadAspectRatio()
+    const savedCustomText = loadCustomText()
     if (saved && saved.length > 0) {
       setImages(saved)
     }
     if (savedAspectRatio) {
       setAspectRatio(savedAspectRatio)
     }
+    if (savedCustomText) {
+      setCustomText(savedCustomText)
+    }
   }, [])
 
   const handleImagesChange = (newImages) => {
-    addDebugLog('Upload', 'Images changed', {
-      count: newImages.length,
-      images: newImages.map((img, idx) => ({
-        index: idx,
-        type: typeof img,
-        isString: typeof img === 'string',
-        startsWithData: typeof img === 'string' ? img.startsWith('data:image/') : false,
-        length: typeof img === 'string' ? img.length : 0,
-        preview: typeof img === 'string' ? img.substring(0, 80) : 'not a string',
-        mimeType: typeof img === 'string' && img.startsWith('data:') ? img.split(';')[0] : 'unknown'
-      })),
-      userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : 'unknown',
-      isMobile: typeof window !== 'undefined' ? window.innerWidth <= 768 : false
-    })
     setImages(newImages)
     try {
       saveImages(newImages)
-      addDebugLog('Upload', 'Images saved successfully', {})
     } catch (error) {
-      // Error is already logged in saveImages
-      addDebugLog('Upload', 'ERROR: Failed to save images', { error: error?.message })
       if (error.message?.includes('quota') || error.message?.includes('QuotaExceededError')) {
-        // Show user-friendly warning
-        addDebugLog('Upload', 'WARN: Storage quota exceeded', {})
         // Show alert to user (only once per session to avoid spam)
         if (!window._storageQuotaWarningShown) {
           window._storageQuotaWarningShown = true
@@ -148,6 +125,11 @@ export default function Upload() {
   const handleAspectRatioChange = (ratio) => {
     setAspectRatio(ratio)
     saveAspectRatio(ratio)
+  }
+
+  const handleCustomTextChange = (text) => {
+    setCustomText(text)
+    saveCustomText(text)
   }
 
   const handleGenerate = () => {
@@ -230,6 +212,45 @@ export default function Upload() {
           </h2>
         </div>
         
+        {/* Custom Text Input */}
+        <div className="mb-6 retro-grain retro-border p-4">
+          <p 
+            className="text-center mb-3 text-sm tracking-widest uppercase" 
+            style={{ letterSpacing: '0.1em', color: '#d4a574', fontFamily: "'Courier New', monospace" }}
+          >
+            PERSONALIZE YOUR COLLAGE
+          </p>
+          <div className="flex flex-col items-center gap-2">
+            <label 
+              className="text-xs uppercase"
+              style={{ color: '#c49660', fontFamily: "'Courier New', monospace" }}
+            >
+              COLLAGE TITLE
+            </label>
+            <input
+              type="text"
+              value={customText}
+              onChange={(e) => handleCustomTextChange(e.target.value)}
+              placeholder="MEMORIES"
+              maxLength={30}
+              className="w-full max-w-md px-4 py-2 text-center retro-border"
+              style={{
+                background: 'rgba(42, 37, 32, 0.8)',
+                color: '#f5f1e8',
+                fontFamily: "'Courier New', monospace",
+                fontSize: '16px',
+                borderColor: '#8b7862'
+              }}
+            />
+            <p 
+              className="text-xs opacity-60 mt-1"
+              style={{ color: '#d4a574', fontFamily: "'Courier New', monospace" }}
+            >
+              This text will appear on your collage
+            </p>
+          </div>
+        </div>
+
         {/* Aspect Ratio Selection */}
         <div className="mb-8 retro-grain">
           <p 
