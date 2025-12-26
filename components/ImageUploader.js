@@ -26,31 +26,55 @@ export default function ImageUploader({ images, onImagesChange, maxImages = null
     return true
   }
 
+  // Detect if we're on a mobile device
+  const isMobileDevice = () => {
+    if (typeof window === 'undefined') return false
+    return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
+           (window.innerWidth <= 768)
+  }
+
   // Compress image to reduce storage size
-  const compressImage = (dataUrl, maxWidth = 1920, maxHeight = 1920, quality = 0.75) => {
+  // Use more aggressive compression on mobile to save memory
+  const compressImage = (dataUrl) => {
     return new Promise((resolve, reject) => {
+      const mobile = isMobileDevice()
+      // More aggressive compression on mobile: smaller size, lower quality
+      const maxWidth = mobile ? 1600 : 1920
+      const maxHeight = mobile ? 1600 : 1920
+      const quality = mobile ? 0.65 : 0.75
+      
       const img = new Image()
       img.onload = () => {
-        const canvas = document.createElement('canvas')
-        let width = img.width
-        let height = img.height
+        try {
+          const canvas = document.createElement('canvas')
+          let width = img.width
+          let height = img.height
 
-        // Calculate new dimensions while maintaining aspect ratio
-        if (width > maxWidth || height > maxHeight) {
-          const ratio = Math.min(maxWidth / width, maxHeight / height)
-          width = width * ratio
-          height = height * ratio
+          // Calculate new dimensions while maintaining aspect ratio
+          if (width > maxWidth || height > maxHeight) {
+            const ratio = Math.min(maxWidth / width, maxHeight / height)
+            width = width * ratio
+            height = height * ratio
+          }
+
+          canvas.width = width
+          canvas.height = height
+
+          const ctx = canvas.getContext('2d')
+          ctx.drawImage(img, 0, 0, width, height)
+
+          // Convert to JPEG with compression
+          const compressedDataUrl = canvas.toDataURL('image/jpeg', quality)
+          
+          // Clean up to free memory
+          img.src = ''
+          canvas.width = 0
+          canvas.height = 0
+          
+          resolve(compressedDataUrl)
+        } catch (error) {
+          reject(error)
         }
-
-        canvas.width = width
-        canvas.height = height
-
-        const ctx = canvas.getContext('2d')
-        ctx.drawImage(img, 0, 0, width, height)
-
-        // Convert to JPEG with compression
-        const compressedDataUrl = canvas.toDataURL('image/jpeg', quality)
-        resolve(compressedDataUrl)
       }
       img.onerror = reject
       img.src = dataUrl
@@ -149,34 +173,98 @@ export default function ImageUploader({ images, onImagesChange, maxImages = null
       const successfulImages = []
       const failedFiles = []
       
-      // Process files one by one to show progress
-      for (let i = 0; i < fileArray.length; i++) {
-        const file = fileArray[i]
-        setProcessingProgress({ 
-          current: i, 
-          total: fileArray.length, 
-          currentFileName: file.name 
-        })
+      // On mobile, process in smaller batches to avoid memory issues
+      const mobile = isMobileDevice()
+      const batchSize = mobile ? 3 : 5
+      const totalBatches = Math.ceil(fileArray.length / batchSize)
+      
+      for (let batchIndex = 0; batchIndex < totalBatches; batchIndex++) {
+        const batchStart = batchIndex * batchSize
+        const batchEnd = Math.min(batchStart + batchSize, fileArray.length)
+        const batch = fileArray.slice(batchStart, batchEnd)
+        
+        // Process batch
+        for (let i = 0; i < batch.length; i++) {
+          const fileIndex = batchStart + i
+          const file = batch[i]
+          
+          setProcessingProgress({ 
+            current: fileIndex, 
+            total: fileArray.length, 
+            currentFileName: file.name 
+          })
 
-        try {
-          const result = await processFile(file)
-          successfulImages.push(result)
-        } catch (error) {
-          failedFiles.push(file.name)
-          console.error(`Failed to process ${file.name}:`, error)
+          try {
+            // Add timeout for mobile to prevent hanging
+            const timeoutPromise = new Promise((_, reject) => 
+              setTimeout(() => reject(new Error('Processing timeout')), mobile ? 30000 : 60000)
+            )
+            
+            const result = await Promise.race([
+              processFile(file),
+              timeoutPromise
+            ])
+            
+            successfulImages.push(result)
+            
+            // Update state incrementally on mobile to avoid memory buildup
+            if (mobile && successfulImages.length > 0) {
+              // Update every 2 images on mobile to reduce memory pressure
+              if (successfulImages.length % 2 === 0 || fileIndex === fileArray.length - 1) {
+                try {
+                  onImagesChange([...images, ...successfulImages])
+                } catch (error) {
+                  // If storage fails, continue processing but log it
+                  console.warn('Failed to save batch, continuing...', error)
+                }
+              }
+            }
+          } catch (error) {
+            failedFiles.push(file.name)
+            console.error(`Failed to process ${file.name}:`, error)
+            
+            // On mobile, if we get memory errors, suggest reducing batch
+            if (mobile && (error.message?.includes('memory') || error.message?.includes('timeout'))) {
+              console.warn('Mobile memory issue detected, consider uploading fewer images at once')
+            }
+          }
+          
+          // Update progress
+          setProcessingProgress({ 
+            current: fileIndex + 1, 
+            total: fileArray.length, 
+            currentFileName: fileIndex + 1 < fileArray.length ? fileArray[fileIndex + 1]?.name || '' : '' 
+          })
+          
+          // Small delay between files on mobile to allow memory cleanup
+          if (mobile && i < batch.length - 1) {
+            await new Promise(resolve => setTimeout(resolve, 100))
+          }
         }
         
-        // Update progress after processing each file
-        setProcessingProgress({ 
-          current: i + 1, 
-          total: fileArray.length, 
-          currentFileName: i + 1 < fileArray.length ? fileArray[i + 1]?.name || '' : '' 
-        })
+        // Update state after each batch completes (for non-mobile or final batch)
+        if (!mobile && successfulImages.length > 0) {
+          try {
+            onImagesChange([...images, ...successfulImages])
+          } catch (error) {
+            console.warn('Failed to save batch, continuing...', error)
+          }
+        }
+        
+        // Delay between batches on mobile to allow memory recovery
+        if (mobile && batchIndex < totalBatches - 1) {
+          await new Promise(resolve => setTimeout(resolve, 200))
+        }
       }
 
+      // Final update with all successful images (in case incremental updates missed some)
       if (successfulImages.length > 0) {
-        // Update images - parent component handles storage errors gracefully
-        onImagesChange([...images, ...successfulImages])
+        try {
+          onImagesChange([...images, ...successfulImages])
+        } catch (error) {
+          // If final update fails, at least show what we have
+          console.error('Failed to save final images:', error)
+        }
       }
 
       if (failedFiles.length > 0) {
@@ -185,9 +273,14 @@ export default function ImageUploader({ images, onImagesChange, maxImages = null
           : `${failedFiles.slice(0, 3).join(', ')} and ${failedFiles.length - 3} more`
         alert(`Failed to process ${failedFiles.length} file(s): ${failedList}\n\nPlease try converting HEIC files to JPEG/PNG first, or use different image files.`)
       }
+      
+      // Show success message if many images were processed
+      if (successfulImages.length > 10) {
+        console.log(`Successfully processed ${successfulImages.length} images`)
+      }
     } catch (error) {
       console.error('Error processing images:', error)
-      alert('An error occurred while processing images. Please try again.')
+      alert('An error occurred while processing images. Please try uploading fewer images at once, especially on mobile devices.')
     } finally {
       setIsProcessing(false)
       // Reset progress after a brief delay to show completion
