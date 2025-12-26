@@ -1,0 +1,38 @@
+{
+  "name": "photo-lab",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "export": "next build"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Squirrr/wrapped.git"
+  },
+  "keywords": ["photo", "collage", "retro", "year-wrapped", "photography"],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/Squirrr/wrapped/issues"
+  },
+  "homepage": "https://github.com/Squirrr/wrapped#readme",
+  "description": "PHOTO LAB - Create retro photography collages from your year. Upload photos and generate vintage-style collages with film filters.",
+  "dependencies": {
+    "file-saver": "^2.0.5",
+    "framer-motion": "^12.23.26",
+    "heic2any": "^0.0.4",
+    "html-to-image": "^1.11.13",
+    "jszip": "^3.10.1",
+    "next": "^16.1.1",
+    "react": "^19.2.3",
+    "react-dom": "^19.2.3"
+  },
+  "devDependencies": {
+    "autoprefixer": "^10.4.23",
+    "postcss": "^8.5.6",
+    "tailwindcss": "^3.4.19"
+  }
+}
