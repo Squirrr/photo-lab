@@ -323,12 +323,12 @@ export default function ImageUploader({ images, onImagesChange, maxImages = null
   }
 
   return (
-    <div className="w-full max-w-2xl mx-auto space-y-6">
+    <div className="w-full max-w-2xl mx-auto space-y-3 md:space-y-6">
       <div
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
-        className={`border-2 border-dashed p-8 text-center transition-all retro-border retro-grain ${
+        className={`border-2 border-dashed p-6 md:p-8 text-center transition-all retro-border retro-grain ${
           isDragging
             ? ''
             : ''
@@ -407,7 +407,7 @@ export default function ImageUploader({ images, onImagesChange, maxImages = null
       </div>
 
       {images.length > 0 && (
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mt-6">
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-3 md:gap-4 mt-3 md:mt-6">
           {images.map((image, index) => (
             <div key={index} className="relative group retro-border vignette" style={{ borderColor: '#8b7862' }}>
               <img
@@ -415,10 +415,15 @@ export default function ImageUploader({ images, onImagesChange, maxImages = null
                 alt={`Upload ${index + 1}`}
                 className="w-full h-32 object-cover"
                 style={{ filter: 'sepia(10%)' }}
+                onError={(e) => {
+                  console.error(`Failed to load image ${index + 1}`)
+                  e.target.style.display = 'none'
+                }}
+                loading="lazy"
               />
               <button
                 onClick={() => removeImage(index)}
-                className="absolute top-2 right-2 text-white w-6 h-6 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity text-sm font-bold retro-border"
+                className="absolute top-2 right-2 text-white w-6 h-6 flex items-center justify-center opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity text-sm font-bold retro-border"
                 style={{
                   background: 'rgba(220, 38, 38, 0.8)',
                   borderColor: '#dc2626',

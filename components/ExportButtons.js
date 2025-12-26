@@ -4,6 +4,18 @@ import JSZip from 'jszip'
 import { saveAs } from 'file-saver'
 import { FILTER_STYLES } from '../utils/filterStyles'
 
+// Detect if we're on a mobile device
+const isMobileDevice = () => {
+  if (typeof window === 'undefined') return false
+  return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
+         (window.innerWidth <= 768)
+}
+
+// Check if Web Share API is available
+const canUseWebShare = () => {
+  return typeof navigator !== 'undefined' && 'share' in navigator
+}
+
 export default function ExportButtons({ cardIds = [], currentIndex = 0, currentFilter = 'fujifilm', allFilters = [], onExportAllFilters = null }) {
   const [isExporting, setIsExporting] = useState(false)
 
@@ -38,8 +50,34 @@ export default function ExportButtons({ cardIds = [], currentIndex = 0, currentF
       })
 
       const filterName = FILTER_STYLES[filterKey]?.name || filterKey
+      const filename = `photolab-${filterName.toLowerCase().replace(/\s+/g, '-')}.png`
+
+      // On mobile, use Web Share API to save to photo library
+      if (isMobileDevice() && canUseWebShare()) {
+        try {
+          // Convert data URL to blob
+          const response = await fetch(dataUrl)
+          const blob = await response.blob()
+          const file = new File([blob], filename, { type: 'image/png' })
+
+          // Use Web Share API - on iOS this allows saving to photo library
+          if (navigator.canShare && navigator.canShare({ files: [file] })) {
+            await navigator.share({
+              files: [file],
+              title: 'Photo Lab Collage',
+              text: 'Check out my Photo Lab collage!'
+            })
+            return
+          }
+        } catch (shareError) {
+          // If share fails, fall through to download
+          console.warn('Web Share API failed, falling back to download:', shareError)
+        }
+      }
+
+      // Fallback to download for desktop or if share fails
       const link = document.createElement('a')
-      link.download = `photolab-${filterName.toLowerCase().replace(/\s+/g, '-')}.png`
+      link.download = filename
       link.href = dataUrl
       link.click()
     } catch (error) {

@@ -211,8 +211,27 @@ export function CollageCard({ images, year = new Date().getFullYear(), filterSty
     )
   }
 
+  // Filter out invalid images
+  const validImages = images.filter(img => img && typeof img === 'string' && img.startsWith('data:image/'))
+  
+  if (validImages.length === 0) {
+    return (
+      <CardTemplate gradientIndex={0} id="card-collage">
+        <div className="text-center">
+          <div className="text-sm tracking-widest uppercase mb-4 opacity-60" style={{ letterSpacing: '0.2em' }}>
+            {year}
+          </div>
+          <h2 className="text-7xl font-display-bold uppercase" style={{ fontFamily: "'Bungee Inline', cursive" }}>
+            WRAPPED
+          </h2>
+          <p className="mt-4 text-sm opacity-60">No valid images found</p>
+        </div>
+      </CardTemplate>
+    )
+  }
+
   const filter = getFilterStyle(filterStyle)
-  const collagePositions = generateRandomCollage(images, sizeScale, aspectRatio)
+  const collagePositions = generateRandomCollage(validImages, sizeScale, aspectRatio)
   const timestamp = formatDigicamTimestamp()
 
   return (
@@ -240,6 +259,22 @@ export function CollageCard({ images, year = new Date().getFullYear(), filterSty
                 filter: filter.filter,
                 transform: 'scale(1.05)'
               }}
+              onError={(e) => {
+                console.error(`Failed to load image in collage at index ${idx}:`, item.image?.substring(0, 50))
+                // Show a placeholder or hide the broken image
+                e.target.style.display = 'none'
+                // Try to show a fallback
+                const parent = e.target.parentElement
+                if (parent) {
+                  parent.style.backgroundColor = 'rgba(0, 0, 0, 0.3)'
+                  parent.innerHTML = '<div style="display: flex; align-items: center; justify-content: center; width: 100%; height: 100%; color: white; font-size: 12px;">Image failed to load</div>'
+                }
+              }}
+              onLoad={(e) => {
+                // Ensure image is visible when loaded
+                e.target.style.display = 'block'
+              }}
+              loading="lazy"
             />
             {filter.shadowOverlay && (
               <div

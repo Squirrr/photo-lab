@@ -258,7 +258,7 @@ export default function Upload() {
         
         {/* Validation Message */}
         {images.length > 0 && !isValidForCurrent && (
-          <div className="mt-4 text-center">
+          <div className="mt-2 md:mt-4 text-center">
             <p 
               className="text-sm"
               style={{ 
@@ -285,11 +285,11 @@ export default function Upload() {
           </div>
         )}
         
-        <div className="flex justify-center mt-8">
+        <div className="flex justify-center mt-4 md:mt-8">
           <button
             onClick={handleGenerate}
             disabled={isButtonDisabled}
-            className="px-12 py-4 retro-border font-bold transition-all disabled:opacity-50 disabled:cursor-not-allowed text-base hover:scale-105 transform"
+            className="px-8 md:px-12 py-3 md:py-4 retro-border font-bold transition-all disabled:opacity-50 disabled:cursor-not-allowed text-sm md:text-base hover:scale-105 transform"
             style={{
               background: isButtonDisabled
                 ? 'rgba(212, 165, 116, 0.3)' 
