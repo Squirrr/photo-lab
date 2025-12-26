@@ -7,6 +7,15 @@ import { FILTER_STYLES } from '../utils/filterStyles'
 import CardGallery from '../components/CardGallery'
 import ExportButtons from '../components/ExportButtons'
 
+// Use global addDebugLog if available, fallback to console
+const addDebugLog = (category, message, data) => {
+  if (typeof window !== 'undefined' && window.addDebugLog) {
+    window.addDebugLog(category, message, data)
+  } else {
+    console.log(`[${category}]`, message, data)
+  }
+}
+
 const LOADING_MESSAGES = [
   'Processing...',
   'Building your wrap...',
@@ -25,9 +34,24 @@ export default function Gallery() {
   const filterKeys = Object.keys(FILTER_STYLES)
 
   useEffect(() => {
+    addDebugLog('Gallery', 'Component mounted, loading images', {})
     const images = loadImages()
     const savedScale = loadSizeScale()
     const savedFilter = loadFilter()
+    
+    addDebugLog('Gallery', 'Loaded data from storage', {
+      imagesCount: images.length,
+      savedScale,
+      savedFilter,
+      images: images.map((img, idx) => ({
+        index: idx,
+        type: typeof img,
+        isString: typeof img === 'string',
+        startsWithData: typeof img === 'string' ? img.startsWith('data:image/') : false,
+        length: typeof img === 'string' ? img.length : 0,
+        preview: typeof img === 'string' ? img.substring(0, 80) : 'not a string'
+      }))
+    })
     
     if (savedScale !== null) {
       setSizeScale(savedScale)
@@ -38,9 +62,12 @@ export default function Gallery() {
     }
 
     if (images.length === 0) {
+      addDebugLog('Gallery', 'No images found, redirecting to upload', {})
       router.push('/upload')
       return
     }
+    
+    addDebugLog('Gallery', 'Images found, proceeding to generate cards', {})
 
     const messageInterval = setInterval(() => {
       setLoadingMessage(
@@ -154,7 +181,7 @@ export default function Gallery() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center px-4 py-8 relative z-10">
+    <div className="min-h-screen flex flex-col items-center justify-center px-4 py-8 relative z-10" style={{ width: '95vw', maxWidth: '95vw' }}>
       <div className="mb-8 text-center">
         <h1 
           className="text-xl md:text-2xl mb-2 font-display-bold uppercase tracking-wider" 

@@ -48,7 +48,7 @@ export default function History() {
 
   return (
     <div className="min-h-screen flex flex-col items-center px-4 py-8 relative z-10">
-      <div className="max-w-4xl w-full">
+      <div style={{ width: '95vw', maxWidth: '95vw' }}>
         {/* Header */}
         <div className="mb-8 text-center">
           <Link href="/">

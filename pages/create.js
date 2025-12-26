@@ -52,7 +52,7 @@ export default function Create() {
 
   return (
     <div className="min-h-screen flex items-center justify-center px-4 py-8">
-      <div className="max-w-2xl w-full">
+      <div style={{ width: '95vw', maxWidth: '95vw' }}>
         <ProgressIndicator currentStep={currentStep + 1} totalSteps={totalPrompts} />
         <PromptCard
           prompt={currentPrompt}

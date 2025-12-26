@@ -3,6 +3,15 @@ import { useRouter } from 'next/router'
 import ImageUploader from '../components/ImageUploader'
 import { saveImages, loadImages, saveAspectRatio, loadAspectRatio } from '../lib/storage'
 
+// Use global addDebugLog if available, fallback to console
+const addDebugLog = (category, message, data) => {
+  if (typeof window !== 'undefined' && window.addDebugLog) {
+    window.addDebugLog(category, message, data)
+  } else {
+    console.log(`[${category}]`, message, data)
+  }
+}
+
 // Check if a number is a perfect square (valid for square grids)
 function isValidSquareCount(n) {
   if (n <= 0) return false
@@ -91,14 +100,30 @@ export default function Upload() {
   }, [])
 
   const handleImagesChange = (newImages) => {
+    addDebugLog('Upload', 'Images changed', {
+      count: newImages.length,
+      images: newImages.map((img, idx) => ({
+        index: idx,
+        type: typeof img,
+        isString: typeof img === 'string',
+        startsWithData: typeof img === 'string' ? img.startsWith('data:image/') : false,
+        length: typeof img === 'string' ? img.length : 0,
+        preview: typeof img === 'string' ? img.substring(0, 80) : 'not a string',
+        mimeType: typeof img === 'string' && img.startsWith('data:') ? img.split(';')[0] : 'unknown'
+      })),
+      userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : 'unknown',
+      isMobile: typeof window !== 'undefined' ? window.innerWidth <= 768 : false
+    })
     setImages(newImages)
     try {
       saveImages(newImages)
+      addDebugLog('Upload', 'Images saved successfully', {})
     } catch (error) {
       // Error is already logged in saveImages
+      addDebugLog('Upload', 'ERROR: Failed to save images', { error: error?.message })
       if (error.message?.includes('quota') || error.message?.includes('QuotaExceededError')) {
         // Show user-friendly warning
-        console.warn('Storage quota exceeded, images not saved to localStorage')
+        addDebugLog('Upload', 'WARN: Storage quota exceeded', {})
         // Show alert to user (only once per session to avoid spam)
         if (!window._storageQuotaWarningShown) {
           window._storageQuotaWarningShown = true
@@ -185,7 +210,7 @@ export default function Upload() {
 
   return (
     <div className="min-h-screen flex items-center justify-center px-4 py-8 relative z-10">
-      <div className="max-w-2xl w-full">
+      <div style={{ width: '95vw', maxWidth: '95vw' }}>
         <div className="mb-8 text-center">
           <h1 
             className="text-xl md:text-2xl mb-2 font-display-bold uppercase tracking-wider" 

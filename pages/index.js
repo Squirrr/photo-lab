@@ -8,7 +8,8 @@ export default function Home() {
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.8 }}
-        className="text-center max-w-2xl w-full retro-grain"
+        className="text-center retro-grain"
+        style={{ width: '95vw', maxWidth: '95vw' }}
       >
         <motion.div
           initial={{ opacity: 0, scale: 0.95 }}
