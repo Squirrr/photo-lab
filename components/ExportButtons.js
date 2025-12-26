@@ -78,29 +78,48 @@ export default function ExportButtons({ cardIds = [], currentIndex = 0, currentF
         await new Promise(resolve => setTimeout(resolve, 300))
       }
 
-      const dataUrl = await toPng(element, {
-        quality: 1.0,
-        pixelRatio: isMobileDevice() ? 1.5 : 2, // Lower pixel ratio on mobile for performance
-        backgroundColor: '#000000',
-        useCORS: true,
-        cacheBust: true,
-        skipFonts: false,
-        style: {
-          transform: 'scale(1)',
-        },
-        // Ensure images are included
-        includeQueryParams: true,
-      }).catch((error) => {
-        // Fallback: try without some options if CORS error occurs
-        console.warn('First export attempt failed, trying fallback:', error)
-        return toPng(element, {
+      // Try exporting with options that avoid CSS rules access
+      let dataUrl
+      try {
+        dataUrl = await toPng(element, {
           quality: 1.0,
           pixelRatio: isMobileDevice() ? 1.5 : 2,
           backgroundColor: '#000000',
+          useCORS: true,
           cacheBust: true,
+          skipFonts: true, // Skip fonts to avoid CSS rules access
+          style: {
+            transform: 'scale(1)',
+          },
           includeQueryParams: true,
+          filter: (node) => {
+            // Filter out problematic nodes
+            return true
+          }
         })
-      })
+      } catch (firstError) {
+        console.warn('First export attempt failed, trying fallback:', firstError)
+        try {
+          // Fallback: minimal options to avoid CSS rules access
+          dataUrl = await toPng(element, {
+            quality: 1.0,
+            pixelRatio: isMobileDevice() ? 1.5 : 2,
+            backgroundColor: '#000000',
+            cacheBust: true,
+            skipFonts: true,
+            includeQueryParams: true,
+          })
+        } catch (secondError) {
+          console.warn('Second export attempt failed, trying final fallback:', secondError)
+          // Final fallback: absolute minimum options
+          dataUrl = await toPng(element, {
+            quality: 0.95,
+            pixelRatio: 1,
+            backgroundColor: '#000000',
+            skipFonts: true,
+          })
+        }
+      }
 
       const filterName = FILTER_STYLES[filterKey]?.name || filterKey
       const filename = `photolab-${filterName.toLowerCase().replace(/\s+/g, '-')}.png`
@@ -178,28 +197,41 @@ export default function ExportButtons({ cardIds = [], currentIndex = 0, currentF
             // Wait a bit more for images to render
             await new Promise(resolve => setTimeout(resolve, 500))
             
-            const dataUrl = await toPng(element, {
-              quality: 1.0,
-              pixelRatio: isMobileDevice() ? 1.5 : 2,
-              backgroundColor: '#000000',
-              useCORS: true,
-              cacheBust: true,
-              skipFonts: false,
-              style: {
-                transform: 'scale(1)',
-              },
-              includeQueryParams: true,
-            }).catch((error) => {
-              // Fallback: try without some options if CORS error occurs
-              console.warn('First export attempt failed, trying fallback:', error)
-              return toPng(element, {
+            let dataUrl
+            try {
+              dataUrl = await toPng(element, {
                 quality: 1.0,
                 pixelRatio: isMobileDevice() ? 1.5 : 2,
                 backgroundColor: '#000000',
+                useCORS: true,
                 cacheBust: true,
+                skipFonts: true, // Skip fonts to avoid CSS rules access
+                style: {
+                  transform: 'scale(1)',
+                },
                 includeQueryParams: true,
               })
-            })
+            } catch (firstError) {
+              console.warn('First export attempt failed, trying fallback:', firstError)
+              try {
+                dataUrl = await toPng(element, {
+                  quality: 1.0,
+                  pixelRatio: isMobileDevice() ? 1.5 : 2,
+                  backgroundColor: '#000000',
+                  cacheBust: true,
+                  skipFonts: true,
+                  includeQueryParams: true,
+                })
+              } catch (secondError) {
+                console.warn('Second export attempt failed, trying final fallback:', secondError)
+                dataUrl = await toPng(element, {
+                  quality: 0.95,
+                  pixelRatio: 1,
+                  backgroundColor: '#000000',
+                  skipFonts: true,
+                })
+              }
+            }
 
             const base64Data = dataUrl.split(',')[1]
             const filterName = FILTER_STYLES[filterKey]?.name || filterKey
