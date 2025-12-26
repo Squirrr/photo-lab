@@ -28,10 +28,33 @@ const canUseWebShare = () => {
 export default function ExportButtons({ cardIds = [], currentIndex = 0, currentFilter = 'fujifilm', allFilters = [], onExportAllFilters = null }) {
   const [isExporting, setIsExporting] = useState(false)
 
+  // Verify an image is actually loaded and rendered
+  const verifyImageLoaded = (img, idx) => {
+    const isComplete = img.complete
+    const hasValidDimensions = img.naturalWidth > 0 && img.naturalHeight > 0
+    const isVisible = img.offsetWidth > 0 && img.offsetHeight > 0
+    const isInDOM = img.isConnected
+    
+    addDebugLog('ExportButtons', `Verifying image ${idx}`, {
+      complete: isComplete,
+      naturalWidth: img.naturalWidth,
+      naturalHeight: img.naturalHeight,
+      offsetWidth: img.offsetWidth,
+      offsetHeight: img.offsetHeight,
+      isVisible,
+      isInDOM,
+      display: window.getComputedStyle(img).display,
+      opacity: window.getComputedStyle(img).opacity,
+      srcLength: img.src?.length || 0
+    })
+    
+    return isComplete && hasValidDimensions && isVisible && isInDOM
+  }
+
   // Wait for all images in an element to load
   const waitForImages = (element) => {
     return new Promise((resolve) => {
-      const images = element.querySelectorAll('img')
+      const images = Array.from(element.querySelectorAll('img'))
       addDebugLog('ExportButtons', 'waitForImages started', {
         imagesCount: images.length,
         elementId: element.id
@@ -43,24 +66,78 @@ export default function ExportButtons({ cardIds = [], currentIndex = 0, currentF
         return
       }
 
-      let loadedCount = 0
+      let verifiedCount = 0
       const totalImages = images.length
+      const verifiedImages = new Set()
+      const maxRetries = 3
+      let retryCount = 0
 
-      const checkComplete = () => {
-        loadedCount++
-        addDebugLog('ExportButtons', `Image loaded: ${loadedCount}/${totalImages}`, {
-          loadedCount,
-          totalImages
+      const checkImage = (img, idx) => {
+        if (verifiedImages.has(idx)) return true
+        
+        if (verifyImageLoaded(img, idx)) {
+          verifiedImages.add(idx)
+          verifiedCount++
+          addDebugLog('ExportButtons', `Image ${idx} verified: ${verifiedCount}/${totalImages}`, {
+            naturalWidth: img.naturalWidth,
+            naturalHeight: img.naturalHeight
+          })
+          return true
+        }
+        return false
+      }
+
+      const checkAllComplete = () => {
+        // Re-check all images
+        images.forEach((img, idx) => {
+          if (!verifiedImages.has(idx)) {
+            checkImage(img, idx)
+          }
         })
-        if (loadedCount === totalImages) {
-          addDebugLog('ExportButtons', 'All images loaded, waiting 100ms for render', {
+        
+        if (verifiedCount === totalImages) {
+          addDebugLog('ExportButtons', 'All images verified, waiting 500ms for final render', {
             totalImages
           })
-          // Give a small delay to ensure rendering is complete
+          // Give extra time for rendering, especially on mobile
           setTimeout(() => {
-            addDebugLog('ExportButtons', 'All images loaded successfully', {})
+            // Final verification pass
+            let finalVerified = 0
+            images.forEach((img, idx) => {
+              if (verifyImageLoaded(img, idx)) {
+                finalVerified++
+              }
+            })
+            
+            addDebugLog('ExportButtons', 'Final verification complete', {
+              verified: finalVerified,
+              total: totalImages
+            })
+            
+            if (finalVerified === totalImages) {
+              addDebugLog('ExportButtons', 'All images loaded and verified successfully', {})
+            } else {
+              addDebugLog('ExportButtons', 'WARN: Some images not fully verified', {
+                verified: finalVerified,
+                total: totalImages
+              })
+            }
+            
             resolve()
-          }, 100)
+          }, isMobileDevice() ? 1000 : 500)
+        } else if (retryCount < maxRetries) {
+          retryCount++
+          addDebugLog('ExportButtons', `Retry ${retryCount}/${maxRetries} - waiting for images`, {
+            verified: verifiedCount,
+            total: totalImages
+          })
+          setTimeout(checkAllComplete, 500)
+        } else {
+          addDebugLog('ExportButtons', 'WARN: Max retries reached, proceeding with partial load', {
+            verified: verifiedCount,
+            total: totalImages
+          })
+          resolve()
         }
       }
 
@@ -71,53 +148,74 @@ export default function ExportButtons({ cardIds = [], currentIndex = 0, currentF
           img.loading = 'eager'
         }
 
-        if (img.complete && img.naturalHeight !== 0) {
-          addDebugLog('ExportButtons', `Image ${idx} already complete`, {
+        // Set up load handlers
+        const onImageLoad = () => {
+          addDebugLog('ExportButtons', `Image ${idx} onload fired`, {
             naturalWidth: img.naturalWidth,
-            naturalHeight: img.naturalHeight,
-            src: img.src.substring(0, 50) + '...'
+            naturalHeight: img.naturalHeight
           })
-          checkComplete()
+          // Small delay to ensure image is rendered
+          setTimeout(() => {
+            checkImage(img, idx)
+            checkAllComplete()
+          }, 100)
+        }
+        
+        const onImageError = () => {
+          addDebugLog('ExportButtons', `WARN: Image ${idx} onerror fired`, {
+            src: img.src?.substring(0, 50) + '...'
+          })
+          // Still try to verify - sometimes error fires but image loads
+          setTimeout(() => {
+            checkImage(img, idx)
+            checkAllComplete()
+          }, 100)
+        }
+
+        if (img.complete && img.naturalHeight !== 0) {
+          // Image might already be loaded, but verify it's actually rendered
+          addDebugLog('ExportButtons', `Image ${idx} appears complete, verifying`, {
+            naturalWidth: img.naturalWidth,
+            naturalHeight: img.naturalHeight
+          })
+          setTimeout(() => {
+            checkImage(img, idx)
+            checkAllComplete()
+          }, 100)
         } else {
-          addDebugLog('ExportButtons', `Waiting for image ${idx} to load`, {
+          addDebugLog('ExportButtons', `Setting up load handlers for image ${idx}`, {
             complete: img.complete,
-            naturalHeight: img.naturalHeight,
-            src: img.src.substring(0, 50) + '...'
+            naturalHeight: img.naturalHeight
           })
-          img.onload = () => {
-            addDebugLog('ExportButtons', `Image ${idx} onload fired`, {
-              naturalWidth: img.naturalWidth,
-              naturalHeight: img.naturalHeight
-            })
-            checkComplete()
-          }
-          img.onerror = () => {
-            addDebugLog('ExportButtons', `WARN: Image ${idx} onerror fired`, {
-              src: img.src.substring(0, 50) + '...'
-            })
-            checkComplete() // Count errors as "loaded" to not block
-          }
+          img.onload = onImageLoad
+          img.onerror = onImageError
+          
           // Force reload if src is set but image hasn't loaded
           if (img.src && !img.complete) {
             addDebugLog('ExportButtons', `Forcing reload of image ${idx}`, {})
             const src = img.src
             img.src = ''
-            img.src = src
+            setTimeout(() => {
+              img.src = src
+            }, 50)
           }
         }
       })
       
-      // Timeout after 5 seconds
+      // Initial check
+      setTimeout(checkAllComplete, 200)
+      
+      // Safety timeout after 10 seconds
       setTimeout(() => {
-        if (loadedCount < totalImages) {
-          addDebugLog('ExportButtons', 'WARN: Timeout waiting for images', {
-            loadedCount,
-            totalImages,
-            missing: totalImages - loadedCount
+        if (verifiedCount < totalImages) {
+          addDebugLog('ExportButtons', 'WARN: Safety timeout reached', {
+            verified: verifiedCount,
+            total: totalImages,
+            missing: totalImages - verifiedCount
           })
           resolve()
         }
-      }, 5000)
+      }, 10000)
     })
   }
 
@@ -139,12 +237,34 @@ export default function ExportButtons({ cardIds = [], currentIndex = 0, currentF
 
       // Wait for all images to load before exporting
       await waitForImages(element)
-      addDebugLog('ExportButtons', 'All images loaded, proceeding with export', {})
+      
+      // Verify images are still in DOM and visible
+      const finalImages = element.querySelectorAll('img')
+      let visibleCount = 0
+      finalImages.forEach((img, idx) => {
+        const isVisible = img.offsetWidth > 0 && img.offsetHeight > 0 && 
+                         img.naturalWidth > 0 && img.naturalHeight > 0
+        if (isVisible) visibleCount++
+        addDebugLog('ExportButtons', `Final check - Image ${idx}`, {
+          visible: isVisible,
+          offsetWidth: img.offsetWidth,
+          offsetHeight: img.offsetHeight,
+          naturalWidth: img.naturalWidth,
+          naturalHeight: img.naturalHeight
+        })
+      })
+      
+      addDebugLog('ExportButtons', 'Pre-export verification complete', {
+        visibleImages: visibleCount,
+        totalImages: finalImages.length
+      })
       
       // Additional wait for mobile to ensure rendering
       if (isMobileDevice()) {
-        addDebugLog('ExportButtons', 'Mobile device detected, waiting additional 300ms', {})
-        await new Promise(resolve => setTimeout(resolve, 300))
+        addDebugLog('ExportButtons', 'Mobile device detected, waiting additional 500ms', {})
+        await new Promise(resolve => setTimeout(resolve, 500))
+      } else {
+        await new Promise(resolve => setTimeout(resolve, 200))
       }
 
       // Try exporting with options that avoid CSS rules access
@@ -282,45 +402,29 @@ export default function ExportButtons({ cardIds = [], currentIndex = 0, currentF
             addDebugLog('ExportButtons', `Processing element for ${filterKey}`, {
               imagesCount: element.querySelectorAll('img').length
             })
-            // Wait for all images to load
-            const images = element.querySelectorAll('img')
-            addDebugLog('ExportButtons', `Waiting for ${images.length} images to load`, {})
-            await Promise.all(
-              Array.from(images).map((img, idx) => {
-                return new Promise((resolve) => {
-                  if (img.complete && img.naturalHeight !== 0) {
-                    addDebugLog('ExportButtons', `Image ${idx} already loaded`, {
-                      naturalWidth: img.naturalWidth,
-                      naturalHeight: img.naturalHeight
-                    })
-                    resolve()
-                  } else {
-                    img.onload = () => {
-                      addDebugLog('ExportButtons', `Image ${idx} loaded`, {
-                        naturalWidth: img.naturalWidth,
-                        naturalHeight: img.naturalHeight
-                      })
-                      resolve()
-                    }
-                    img.onerror = () => {
-                      addDebugLog('ExportButtons', `WARN: Image ${idx} failed to load`, {})
-                      resolve()
-                    }
-                    // Force reload if needed
-                    if (img.src && !img.complete) {
-                      addDebugLog('ExportButtons', `Forcing reload of image ${idx}`, {})
-                      const src = img.src
-                      img.src = ''
-                      img.src = src
-                    }
-                  }
-                })
-              })
-            )
+            // Wait for all images to load using the robust waitForImages function
+            addDebugLog('ExportButtons', `Waiting for images in ${filterKey}`, {
+              imagesCount: element.querySelectorAll('img').length
+            })
+            await waitForImages(element)
             
-            addDebugLog('ExportButtons', 'All images loaded, waiting 500ms for render', {})
-            // Wait a bit more for images to render
-            await new Promise(resolve => setTimeout(resolve, 500))
+            // Verify images are visible
+            const finalImages = element.querySelectorAll('img')
+            let visibleCount = 0
+            finalImages.forEach((img, idx) => {
+              const isVisible = img.offsetWidth > 0 && img.offsetHeight > 0 && 
+                               img.naturalWidth > 0 && img.naturalHeight > 0
+              if (isVisible) visibleCount++
+            })
+            
+            addDebugLog('ExportButtons', `Pre-export check for ${filterKey}`, {
+              visibleImages: visibleCount,
+              totalImages: finalImages.length
+            })
+            
+            // Wait longer for "export all" to ensure each filter's images are fully rendered
+            addDebugLog('ExportButtons', `Waiting 1000ms for ${filterKey} to fully render`, {})
+            await new Promise(resolve => setTimeout(resolve, isMobileDevice() ? 1500 : 1000))
             
             addDebugLog('ExportButtons', `Starting PNG export for ${filterKey}`, {
               pixelRatio: isMobileDevice() ? 1.5 : 2

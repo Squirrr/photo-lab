@@ -268,20 +268,111 @@ export default function Gallery() {
         currentFilter={currentFilter}
         allFilters={filterKeys}
         onExportAllFilters={async (filterKey, callback) => {
+          addDebugLog('Gallery', `onExportAllFilters called for ${filterKey}`, {
+            currentFilter,
+            filterKey,
+            isMobile: typeof window !== 'undefined' && window.innerWidth <= 768
+          })
+          
           // Temporarily change filter, wait for render, then export
           const originalFilter = currentFilter
           if (filterKey !== currentFilter) {
+            addDebugLog('Gallery', `Changing filter from ${currentFilter} to ${filterKey}`, {})
             handleFilterChange(filterKey)
-            await new Promise(resolve => setTimeout(resolve, 500)) // Wait for render
+            
+            // Wait longer for DOM to update and images to re-render
+            const waitTime = typeof window !== 'undefined' && window.innerWidth <= 768 ? 1500 : 1000
+            addDebugLog('Gallery', `Waiting ${waitTime}ms for filter change to render`, {})
+            await new Promise(resolve => setTimeout(resolve, waitTime))
+            
+            // Wait for the element to exist and images to be in DOM
+            let element = document.getElementById('card-collage')
+            let retries = 0
+            while (!element && retries < 10) {
+              addDebugLog('Gallery', `Waiting for card-collage element (retry ${retries})`, {})
+              await new Promise(resolve => setTimeout(resolve, 100))
+              element = document.getElementById('card-collage')
+              retries++
+            }
+            
+            if (element) {
+              const images = element.querySelectorAll('img')
+              addDebugLog('Gallery', `Element found with ${images.length} images, waiting for them to load`, {})
+              
+              // Wait for images to actually load
+              await new Promise(resolve => {
+                let loadedCount = 0
+                const totalImages = images.length
+                
+                if (totalImages === 0) {
+                  addDebugLog('Gallery', 'No images found in element', {})
+                  resolve()
+                  return
+                }
+                
+                const checkComplete = () => {
+                  loadedCount++
+                  if (loadedCount === totalImages) {
+                    addDebugLog('Gallery', `All ${totalImages} images loaded for ${filterKey}`, {})
+                    resolve()
+                  }
+                }
+                
+                images.forEach((img, idx) => {
+                  if (img.complete && img.naturalWidth > 0 && img.naturalHeight > 0) {
+                    addDebugLog('Gallery', `Image ${idx} already loaded`, {
+                      naturalWidth: img.naturalWidth,
+                      naturalHeight: img.naturalHeight
+                    })
+                    checkComplete()
+                  } else {
+                    img.onload = () => {
+                      addDebugLog('Gallery', `Image ${idx} loaded`, {
+                        naturalWidth: img.naturalWidth,
+                        naturalHeight: img.naturalHeight
+                      })
+                      checkComplete()
+                    }
+                    img.onerror = () => {
+                      addDebugLog('Gallery', `WARN: Image ${idx} error`, {})
+                      checkComplete()
+                    }
+                  }
+                })
+                
+                // Safety timeout
+                setTimeout(() => {
+                  if (loadedCount < totalImages) {
+                    addDebugLog('Gallery', 'WARN: Timeout waiting for images', {
+                      loaded: loadedCount,
+                      total: totalImages
+                    })
+                    resolve()
+                  }
+                }, 5000)
+              })
+              
+              // Additional wait for rendering
+              await new Promise(resolve => setTimeout(resolve, 500))
+            }
           }
           
           const element = document.getElementById('card-collage')
+          if (!element) {
+            addDebugLog('Gallery', 'ERROR: card-collage element not found', {})
+          } else {
+            addDebugLog('Gallery', 'Element ready, calling callback', {
+              imagesCount: element.querySelectorAll('img').length
+            })
+          }
+          
           await callback(element)
           
           // Restore original filter
           if (filterKey !== originalFilter) {
+            addDebugLog('Gallery', `Restoring filter to ${originalFilter}`, {})
             handleFilterChange(originalFilter)
-            await new Promise(resolve => setTimeout(resolve, 300))
+            await new Promise(resolve => setTimeout(resolve, 500))
           }
         }}
       />
