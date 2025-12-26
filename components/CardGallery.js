@@ -56,13 +56,14 @@ export default function CardGallery({ cards, onExport, onExportAll, onIndexChang
   }, [currentIndex, onIndexChange])
 
   return (
-    <div className="w-full max-w-4xl mx-auto">
-      <div className="relative">
+    <div className="w-full h-full relative" style={{ width: '100%', height: '100%' }}>
+      <div className="relative w-full h-full" style={{ width: '100%', height: '100%' }}>
         <div
-          className="overflow-hidden rounded-lg"
+          className="overflow-hidden rounded-lg w-full h-full"
           onTouchStart={onTouchStart}
           onTouchMove={onTouchMove}
           onTouchEnd={onTouchEnd}
+          style={{ width: '100%', height: '100%' }}
         >
           <AnimatePresence mode="wait">
             <motion.div
@@ -71,9 +72,10 @@ export default function CardGallery({ cards, onExport, onExportAll, onIndexChang
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: -100 }}
               transition={{ duration: 0.3 }}
-              className="flex justify-center"
+              className="flex justify-center items-center w-full h-full"
+              style={{ width: '100%', height: '100%' }}
             >
-              <div className="scale-75 md:scale-100 origin-top">
+              <div style={{ width: '1080px', height: '1080px' }}>
                 {cards[currentIndex]}
               </div>
             </motion.div>
