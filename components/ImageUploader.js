@@ -26,6 +26,37 @@ export default function ImageUploader({ images, onImagesChange, maxImages = null
     return true
   }
 
+  // Compress image to reduce storage size
+  const compressImage = (dataUrl, maxWidth = 1920, maxHeight = 1920, quality = 0.75) => {
+    return new Promise((resolve, reject) => {
+      const img = new Image()
+      img.onload = () => {
+        const canvas = document.createElement('canvas')
+        let width = img.width
+        let height = img.height
+
+        // Calculate new dimensions while maintaining aspect ratio
+        if (width > maxWidth || height > maxHeight) {
+          const ratio = Math.min(maxWidth / width, maxHeight / height)
+          width = width * ratio
+          height = height * ratio
+        }
+
+        canvas.width = width
+        canvas.height = height
+
+        const ctx = canvas.getContext('2d')
+        ctx.drawImage(img, 0, 0, width, height)
+
+        // Convert to JPEG with compression
+        const compressedDataUrl = canvas.toDataURL('image/jpeg', quality)
+        resolve(compressedDataUrl)
+      }
+      img.onerror = reject
+      img.src = dataUrl
+    })
+  }
+
   const processFile = (file) => {
     return new Promise(async (resolve, reject) => {
       if (!validateFile(file)) {
@@ -34,6 +65,8 @@ export default function ImageUploader({ images, onImagesChange, maxImages = null
       }
 
       try {
+        let dataUrl
+
         // Convert HEIC files to JPEG
         if (isHeicFile(file)) {
           // Dynamically import heic2any only on client side
@@ -42,27 +75,52 @@ export default function ImageUploader({ images, onImagesChange, maxImages = null
             return
           }
 
-          const heic2anyModule = await import('heic2any')
-          const heic2any = heic2anyModule.default || heic2anyModule
-          const convertedBlob = await heic2any({
-            blob: file,
-            toType: 'image/jpeg',
-            quality: 0.92
-          })
-          // heic2any can return an array if there are multiple images, or a single blob
-          const blob = Array.isArray(convertedBlob) ? convertedBlob[0] : convertedBlob
-          
-          const reader = new FileReader()
-          reader.onload = (e) => {
-            resolve(e.target.result)
+          try {
+            const heic2anyModule = await import('heic2any')
+            const heic2any = heic2anyModule.default || heic2anyModule
+            
+            const convertedBlob = await heic2any({
+              blob: file,
+              toType: 'image/jpeg',
+              quality: 0.92
+            })
+            // heic2any can return an array if there are multiple images, or a single blob
+            const blob = Array.isArray(convertedBlob) ? convertedBlob[0] : convertedBlob
+            
+            const reader = new FileReader()
+            reader.onload = (e) => {
+              dataUrl = e.target.result
+              // Compress the converted image
+              compressImage(dataUrl)
+                .then(resolve)
+                .catch(() => resolve(dataUrl)) // Fallback to uncompressed if compression fails
+            }
+            reader.onerror = () => {
+              reject(new Error('Failed to read converted HEIC file. The file format may not be supported. Please try converting it to JPEG first.'))
+            }
+            reader.readAsDataURL(blob)
+          } catch (heicError) {
+            console.error('HEIC conversion error:', heicError)
+            // Provide helpful error message
+            const errorMessage = heicError.message?.includes('format not supported') || heicError.code === 2
+              ? 'This HEIC file format is not supported. Please convert it to JPEG or PNG first, or try a different HEIC file.'
+              : 'Failed to convert HEIC file. Please convert it to JPEG or PNG first.'
+            reject(new Error(errorMessage))
           }
-          reader.onerror = reject
-          reader.readAsDataURL(blob)
         } else {
           // Process regular image files
           const reader = new FileReader()
-          reader.onload = (e) => {
-            resolve(e.target.result)
+          reader.onload = async (e) => {
+            dataUrl = e.target.result
+            // Compress all images to reduce storage size
+            try {
+              const compressed = await compressImage(dataUrl)
+              resolve(compressed)
+            } catch (compressError) {
+              // If compression fails, use original (but this might cause quota issues)
+              console.warn('Image compression failed, using original:', compressError)
+              resolve(dataUrl)
+            }
           }
           reader.onerror = reject
           reader.readAsDataURL(file)
@@ -117,11 +175,15 @@ export default function ImageUploader({ images, onImagesChange, maxImages = null
       }
 
       if (successfulImages.length > 0) {
+        // Update images - parent component handles storage errors gracefully
         onImagesChange([...images, ...successfulImages])
       }
 
       if (failedFiles.length > 0) {
-        alert(`Failed to process ${failedFiles.length} file(s): ${failedFiles.join(', ')}`)
+        const failedList = failedFiles.length <= 3 
+          ? failedFiles.join(', ') 
+          : `${failedFiles.slice(0, 3).join(', ')} and ${failedFiles.length - 3} more`
+        alert(`Failed to process ${failedFiles.length} file(s): ${failedList}\n\nPlease try converting HEIC files to JPEG/PNG first, or use different image files.`)
       }
     } catch (error) {
       console.error('Error processing images:', error)
