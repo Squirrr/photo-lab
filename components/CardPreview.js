@@ -257,8 +257,10 @@ export function CollageCard({ images, year = new Date().getFullYear(), filterSty
               className="w-full h-full object-cover"
               style={{ 
                 filter: filter.filter,
-                transform: 'scale(1.05)'
+                transform: 'scale(1.05)',
+                display: 'block'
               }}
+              crossOrigin="anonymous"
               onError={(e) => {
                 console.error(`Failed to load image in collage at index ${idx}:`, item.image?.substring(0, 50))
                 // Show a placeholder or hide the broken image
@@ -273,8 +275,9 @@ export function CollageCard({ images, year = new Date().getFullYear(), filterSty
               onLoad={(e) => {
                 // Ensure image is visible when loaded
                 e.target.style.display = 'block'
+                e.target.style.opacity = '1'
               }}
-              loading="lazy"
+              loading="eager"
             />
             {filter.shadowOverlay && (
               <div

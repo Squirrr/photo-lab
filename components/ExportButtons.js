@@ -19,6 +19,48 @@ const canUseWebShare = () => {
 export default function ExportButtons({ cardIds = [], currentIndex = 0, currentFilter = 'fujifilm', allFilters = [], onExportAllFilters = null }) {
   const [isExporting, setIsExporting] = useState(false)
 
+  // Wait for all images in an element to load
+  const waitForImages = (element) => {
+    return new Promise((resolve) => {
+      const images = element.querySelectorAll('img')
+      if (images.length === 0) {
+        resolve()
+        return
+      }
+
+      let loadedCount = 0
+      const totalImages = images.length
+
+      const checkComplete = () => {
+        loadedCount++
+        if (loadedCount === totalImages) {
+          // Give a small delay to ensure rendering is complete
+          setTimeout(resolve, 100)
+        }
+      }
+
+      images.forEach((img) => {
+        // Remove lazy loading temporarily
+        if (img.loading === 'lazy') {
+          img.loading = 'eager'
+        }
+
+        if (img.complete && img.naturalHeight !== 0) {
+          checkComplete()
+        } else {
+          img.onload = checkComplete
+          img.onerror = checkComplete // Count errors as "loaded" to not block
+          // Force reload if src is set but image hasn't loaded
+          if (img.src && !img.complete) {
+            const src = img.src
+            img.src = ''
+            img.src = src
+          }
+        }
+      })
+    })
+  }
+
   const exportCard = async (filterKey) => {
     try {
       // Use the currently displayed card element
@@ -28,9 +70,17 @@ export default function ExportButtons({ cardIds = [], currentIndex = 0, currentF
         return
       }
 
+      // Wait for all images to load before exporting
+      await waitForImages(element)
+      
+      // Additional wait for mobile to ensure rendering
+      if (isMobileDevice()) {
+        await new Promise(resolve => setTimeout(resolve, 300))
+      }
+
       const dataUrl = await toPng(element, {
         quality: 1.0,
-        pixelRatio: 2,
+        pixelRatio: isMobileDevice() ? 1.5 : 2, // Lower pixel ratio on mobile for performance
         backgroundColor: '#000000',
         useCORS: true,
         cacheBust: true,
@@ -38,14 +88,17 @@ export default function ExportButtons({ cardIds = [], currentIndex = 0, currentF
         style: {
           transform: 'scale(1)',
         },
+        // Ensure images are included
+        includeQueryParams: true,
       }).catch((error) => {
         // Fallback: try without some options if CORS error occurs
         console.warn('First export attempt failed, trying fallback:', error)
         return toPng(element, {
           quality: 1.0,
-          pixelRatio: 2,
+          pixelRatio: isMobileDevice() ? 1.5 : 2,
           backgroundColor: '#000000',
           cacheBust: true,
+          includeQueryParams: true,
         })
       })
 
@@ -101,12 +154,33 @@ export default function ExportButtons({ cardIds = [], currentIndex = 0, currentF
         // Change filter and wait for render
         await onExportAllFilters(filterKey, async (element) => {
           if (element) {
+            // Wait for all images to load
+            const images = element.querySelectorAll('img')
+            await Promise.all(
+              Array.from(images).map((img) => {
+                return new Promise((resolve) => {
+                  if (img.complete && img.naturalHeight !== 0) {
+                    resolve()
+                  } else {
+                    img.onload = resolve
+                    img.onerror = resolve
+                    // Force reload if needed
+                    if (img.src && !img.complete) {
+                      const src = img.src
+                      img.src = ''
+                      img.src = src
+                    }
+                  }
+                })
+              })
+            )
+            
             // Wait a bit more for images to render
-            await new Promise(resolve => setTimeout(resolve, 800))
+            await new Promise(resolve => setTimeout(resolve, 500))
             
             const dataUrl = await toPng(element, {
               quality: 1.0,
-              pixelRatio: 2,
+              pixelRatio: isMobileDevice() ? 1.5 : 2,
               backgroundColor: '#000000',
               useCORS: true,
               cacheBust: true,
@@ -114,14 +188,16 @@ export default function ExportButtons({ cardIds = [], currentIndex = 0, currentF
               style: {
                 transform: 'scale(1)',
               },
+              includeQueryParams: true,
             }).catch((error) => {
               // Fallback: try without some options if CORS error occurs
               console.warn('First export attempt failed, trying fallback:', error)
               return toPng(element, {
                 quality: 1.0,
-                pixelRatio: 2,
+                pixelRatio: isMobileDevice() ? 1.5 : 2,
                 backgroundColor: '#000000',
                 cacheBust: true,
+                includeQueryParams: true,
               })
             })
 
