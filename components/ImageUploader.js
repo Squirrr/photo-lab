@@ -253,7 +253,6 @@ export default function ImageUploader({ images, onImagesChange, maxImages = null
           type="file"
           accept="image/*,.heic,.heif"
           multiple
-          capture="environment"
           onChange={handleFileInput}
           className="hidden"
           disabled={maxImages !== null && images.length >= maxImages || isProcessing}
@@ -307,7 +306,7 @@ export default function ImageUploader({ images, onImagesChange, maxImages = null
                 className="text-sm"
                 style={{ color: '#d4a574', fontFamily: "'Courier New', monospace" }}
               >
-                OR CLICK TO UPLOAD • {images.length} {images.length === 1 ? 'PHOTO' : 'PHOTOS'} UPLOADED
+                TAP TO UPLOAD FROM LIBRARY • {images.length} {images.length === 1 ? 'PHOTO' : 'PHOTOS'} UPLOADED
               </p>
             </>
           )}
