@@ -1,5 +1,5 @@
 # PHOTO LAB 📸
-
+<h6><i>For more information about the inspiration behind this app, visit <a href="https://www.aakhaled.com/personal/photo-lab/">my webpage</a>!</i></h6>
 **PHOTO LAB** is a retro photography-inspired web app that creates vintage-style collages from your year's photos. Upload your memories and generate beautiful, shareable collages with authentic film filters and grid layouts.
 
 ## Features
